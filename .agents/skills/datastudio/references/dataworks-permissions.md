@@ -5,7 +5,7 @@
 
 ## 权限总览
 
-当前用户有：**项目空间、节点(Node)、任务/工作流/实例、函数、资源、参数、数据集成(DI)**
+当前用户有：**项目空间、节点(Node)、任务/工作流/实例、函数、资源、参数、数据集成(DI)、权限申请/审批**
 当前用户无：**文件(File)、目录(Folder)、业务流程(Business)、数据源(DataSource)、数据地图/元数据**
 
 | 模块 | 权限状态 | 需要的 RAM 策略 |
@@ -19,6 +19,7 @@
 | 数据地图/元数据 | ❌ | 需 `AliyunDataWorksFullAccess` + 数据地图权限 |
 | 任务/工作流/实例 | ✅ | dataworks 运维权限 |
 | 数据集成 DI | ✅ | dataworks:ListDIJobs 等 |
+| 权限申请/审批 | ✅ | dataworks 表权限申请与审批 |
 
 ---
 
@@ -115,6 +116,20 @@
 
 > 数据地图 API 需 `AliyunDataWorksFullAccess` + 专门的数据地图权限。
 
+## 10. 权限申请 / 审批
+
+| API | 能力 | 权限 |
+|-----|------|------|
+| `ApplyResourceAccessPermission` | 提交权限申请 | ✅ |
+| `GetProcessInstance` | 查审批单状态 | ✅ |
+| `GetApplicationContents` | 查申请内容明细 | ✅ |
+| `StopProcessInstance` | 撤回申请（申请人） | ✅ |
+| `ListPendingApprovals` | 查待我审批的单子 | ✅ |
+| `ListMyRelatedApprovals` | 查我相关（含已办）的单子 | ✅ |
+| `ApproveProcessInstance` | 同意 / 驳回 | ✅ |
+
+> 申请与审批的完整流程、参数、踩坑见 [table-permission-apply.md](table-permission-apply.md)。
+
 ---
 
 ## 常用 RAM 权限名
@@ -127,5 +142,6 @@
 ## 备注
 
 - 「❓未测」= 未实际验证，权限状态待确认（多数与同组 API 一致）。
+- 权限申请/审批类 API：`--DefSchema MaxCompute` + `--ResourceType '["table"]'`（JSON 数组字符串），`--PageSize` 实测上限 **50**。
 - `Bizdate`（任务实例）参数为**时间戳毫秒**，非日期字符串。
 - 敏感操作（Delete*、Stop*、Rerun*）执行前需人工确认。
