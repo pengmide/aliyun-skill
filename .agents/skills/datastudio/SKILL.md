@@ -1,6 +1,6 @@
 ---
 name: datastudio
-description: DataWorks DataStudio 数据开发，以节点(Node)为核心：查询、创建、修改、调度、运行 ODPS_SQL 等节点。当需要用 aliyun-cli 开发/管理 DataWorks 数据开发节点（建节点、改节点、查节点、调度）时使用。
+description: DataWorks DataStudio 数据开发，以节点(Node)为核心：查询、创建、修改、调度、运行 ODPS_SQL 等节点。也涵盖 MaxCompute 表权限的申请与审批（提交申请、查待我审批的单子、同意/驳回、撤回）。当需要用 aliyun-cli 开发/管理 DataWorks 数据开发节点，或处理表权限申请/审批时使用。
 ---
 
 # datastudio
@@ -158,16 +158,18 @@ aliyun dataworks-public ListNodes --ProjectId 672230 \
 5. JSON 是默认输出，不用 `--output json`（本机 CLI 3.5.1 会报 `bad flag format --output with field cols= required`）；要裁剪字段用 `--cli-query '<JMESPath>'`。
 6. 敏感信息不落盘、不进命令历史。
 
-## 申请表权限
+## 表权限申请与审批
 
-给用户申请 MaxCompute 表等资源的访问权限（走审批流），见 [references/table-permission-apply.md](references/table-permission-apply.md)。
+MaxCompute 表等资源的访问权限**申请**（走审批流）与**审批**（同意/驳回），见 [references/table-permission-apply.md](references/table-permission-apply.md)。
 
-支持：单表/多表批量申请、指定权限集（select/update/download/describe 等）、查审批单状态、**撤回审批单**（`StopProcessInstance`）。
+- **申请人**：单表/多表批量申请、指定权限集（select/update/download/describe 等）、查审批单状态、**撤回**（`StopProcessInstance`）。
+- **审批人**：查**待我审批**的表权限单（`ListPendingApprovals`）、核查申请内容（如拦截 `drop`/`alter`）、`ApproveProcessInstance` 同意/驳回、审批后验证（`AuthorizeSucceed` 才算生效）。
 
 ## 权限要求
 
 - node 相关 API（`ListNodes`/`GetNode`/`CreateNode`/`UpdateNode`）**有权限**。
 - 运行/实例相关 API（`ExecuteAdhocWorkflowInstance`/`GetWorkflowInstance`/`ListTaskInstances`/`GetTaskInstanceLog`）**有权限**。
+- 权限申请/审批相关 API（`ApplyResourceAccessPermission`/`ListPendingApprovals`/`ListMyRelatedApprovals`/`ApproveProcessInstance`/`GetProcessInstance`/`GetApplicationContents`/`StopProcessInstance`）**有权限**。
 - file 相关 API（`ListFiles`/`ListFolders` 等）当前 **403030 无权限**，如用到需 `AliyunDataWorksFullAccess`。
 
 **各模块 API + 权限完整矩阵见 [references/dataworks-permissions.md](references/dataworks-permissions.md)**。
