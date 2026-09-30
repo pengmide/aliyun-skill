@@ -84,9 +84,19 @@ FlowSpec 至少要提供：
 | `script.language` | 语言 | `odps-sql` |
 | `datasource` | 数据源 | `BDMaxCompute`(odps) |
 | `trigger` | 调度触发 | cron `00 30 00 * * ?` |
-| `runtimeResource` | 调度资源组 | `group_212862176241921` |
+| `runtimeResource` | 调度资源组 | `BD_RG01`（创建前解析实际资源组 ID） |
 
-创建前确认：项目、节点名、命令类型、脚本路径、脚本内容、调度 cron、数据源、资源组。
+## 创建节点默认配置
+
+创建 DataStudio 节点时固定使用以下默认值；只有标记为“用户填写”的字段才向用户询问：
+
+- 计算配置：使用项目默认 Quota，不设置节点级 Quota 覆盖。
+- 调度资源组：`BD_RG01`。`runtimeResource.resourceGroup` 使用资源组标识，不能把显示名当作 ID；若无法查询 ID，先报权限或信息缺失，不臆填。
+- 重跑属性：`rerunMode=Allowed`、`rerunTimes=2`、`rerunInterval=900000`（15 分钟，毫秒）。
+- 描述：用户填写。
+- 调度周期：用户指定 `cycleType` 和 `cron`，未指定前不创建调度节点。
+
+创建前确认：项目、节点名、命令类型、脚本路径、脚本内容、描述、调度周期、数据源；资源组默认 `BD_RG01`，计算配置默认项目 Quota，重跑使用上述固定值。
 
 ## 常用节点查询
 
@@ -96,6 +106,8 @@ FlowSpec 至少要提供：
 | 按名查节点 | `ListNodes --ProjectId 672230 --Name <名>` |
 | 查节点详情 | `GetNode --Id <节点ID>` |
 | 查任务 | `ListTasks`（任务/实例相关见 operation-center）|
+
+> **bizdate 默认值**：查询任务实例（`ListTaskInstances`）时 `Bizdate` 默认用 **`${workspace.lastday}`**（业务日期前一天）。CLI 手动查询需换算成毫秒时间戳，见 [dataworks-permissions.md](references/dataworks-permissions.md) 的「bizdate 默认 lastday」。
 
 ## 铁律
 
