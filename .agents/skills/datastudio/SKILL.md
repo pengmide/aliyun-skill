@@ -52,6 +52,37 @@ aliyun dataworks-public UpdateNode --Id <节点ID> --ProjectId 672230 --Spec '<F
 
 > **不提供删除步骤**：禁止 DeleteNode。
 
+### 6. 运行（试运行）节点
+
+DataStudio 的「运行」= 临时工作流实例（Adhoc），共 4 步：
+
+```bash
+# 1) 提交运行（EnvType：Dev 开发 / Prod 生产）
+aliyun dataworks-public ExecuteAdhocWorkflowInstance --ProjectId 672230 \
+  --Name <实例名> --Owner <账号ID> --EnvType Dev \
+  --Tasks '[{"ClientUniqueCode":"<任意唯一串>","Name":"<节点名>","Type":"ODPS_SQL","Owner":"<账号ID>",
+             "Timeout":3600,"Script":{"Content":"select 1;"},
+             "RuntimeResource":{"ResourceGroupId":"group_212862176241921"},
+             "DataSource":{"Name":"BDMaxCompute"},"Dependencies":[],"Inputs":{},"Outputs":{}}]'
+# -> {"WorkflowInstanceId": 1200064803968}
+
+# 2) 轮询工作流实例状态（该 API 无 --ProjectId）
+aliyun dataworks-public GetWorkflowInstance --Id 1200064803968
+
+# 3) 找任务实例（--Bizdate 必填，毫秒时间戳，取自工作流实例的 BizDate）
+aliyun dataworks-public ListTaskInstances --ProjectId 672230 \
+  --WorkflowInstanceId 1200064803968 --ProjectEnv Dev --Bizdate <毫秒时间戳>
+
+# 4) 拿日志（真正的执行结果在这里）
+aliyun dataworks-public GetTaskInstanceLog --Id <任务实例ID>
+```
+
+坑：
+
+- `RuntimeResource.ResourceGroupId` 要传**资源组标识字符串**（如 `group_212862176241921`，取自节点 FlowSpec 的 `runtimeResource.resourceGroup`）。传节点里的数字 ID（`23400772`）报 `资源组ID#23400772,对应的资源组不存在`；只传 `ResourceGroup` 名字报 `MissingResourceGroupId`；不传 `RuntimeResource` 报 `MissingRuntimeResource`。
+- `ListTaskInstances --Bizdate` 必须是毫秒时间戳，传 `"2026-09-29"` 报 `InvalidBizdate`。
+- 不改动线上调度：EnvType=Dev 且节点未发布时不产生生产实例。
+
 ## FlowSpec 样例
 
 见 [examples/cli_odps_demo_node.json](examples/cli_odps_demo_node.json) —— 一个真实的 `cli_odps_demo`（ODPS_SQL，Daily 调度）节点定义，可作为创建/修改节点的模板。
@@ -96,14 +127,36 @@ FlowSpec 至少要提供：
 | 按名查节点 | `ListNodes --ProjectId 672230 --Name <名>` |
 | 查节点详情 | `GetNode --Id <节点ID>` |
 | 查任务 | `ListTasks`（任务/实例相关见 operation-center）|
+| **运行节点** | 见「6. 运行（试运行）节点」（`ExecuteAdhocWorkflowInstance`） |
+| **查目录树** | `ListNodes --ProjectId 672230` 的 `Script.Path`（见下） |
+
+## 查目录（左侧目录树）
+
+**不要用 `ListFolders`/`GetFolder`/`ListFiles`**：这些 folder/file API 当前 403030 无权限（需 `AliyunDataWorksFullAccess`）。
+
+**改用节点路径还原目录**：节点的 `Script.Path` 最后一段是节点名，前面各段就是目录层级。
+
+```bash
+# 一次拉全量路径（PageSize 最大 100，<10 会报 InvalidPageSize）
+aliyun dataworks-public ListNodes --ProjectId 672230 \
+  --PageNumber 1 --PageSize 100 --cli-query 'PagingInfo.Nodes[].Script.Path'
+```
+
+要点：
+- 按 `Script.Path` 以 `/` 切分、去掉最后一段即为该节点的目录，聚合成树。
+- 空目录（没有任何节点的文件夹）拿不到，只能显示有节点的目录。
+- 根目录下的节点 `Script.Path` 里没有 `/`（如 `sync_mysql_to_odps_20260911_154524`）。
+- 总节点数在 `PagingInfo.TotalCount`，超过 100 时按 `PageNumber` 翻页。
+- 左侧目录树的三个分区对应 `Scene`：`DATAWORKS_PROJECT` 项目目录、`DATAWORKS_MANUAL_WORKFLOW` 手动工作流、`DATAWORKS_MANUAL_TASK` 手动任务，可用 `ListNodes --Scene <值>` 分别列。
 
 ## 铁律
 
 1. 动手前必跑 `aliyun dataworks-public <ApiName> help` 确认参数。
 2. 创建/修改节点前先 `GetNode` 拿现有 FlowSpec 再改，别从零编。
 3. **禁止删除节点**（`DeleteNode` 不执行，除非用户明确人工确认）。
-4. 输出用 `--output json`。
-5. 敏感信息不落盘、不进命令历史。
+4. **参数值优先从 `GetNode` 的 FlowSpec 里取**（资源组标识、数据源、cron 等都在里面），不要调发现类接口：`ListResourceGroups`/`GetResourceGroup`/`ListFolders`/`ListFiles`/`ListSchemas` 等实测均 `403030`。
+5. JSON 是默认输出，不用 `--output json`（本机 CLI 3.5.1 会报 `bad flag format --output with field cols= required`）；要裁剪字段用 `--cli-query '<JMESPath>'`。
+6. 敏感信息不落盘、不进命令历史。
 
 ## 申请表权限
 
@@ -113,7 +166,8 @@ FlowSpec 至少要提供：
 
 ## 权限要求
 
-- node 相关 API（`ListNodes`/`GetNode` 等）**有权限**。
+- node 相关 API（`ListNodes`/`GetNode`/`CreateNode`/`UpdateNode`）**有权限**。
+- 运行/实例相关 API（`ExecuteAdhocWorkflowInstance`/`GetWorkflowInstance`/`ListTaskInstances`/`GetTaskInstanceLog`）**有权限**。
 - file 相关 API（`ListFiles`/`ListFolders` 等）当前 **403030 无权限**，如用到需 `AliyunDataWorksFullAccess`。
 
 **各模块 API + 权限完整矩阵见 [references/dataworks-permissions.md](references/dataworks-permissions.md)**。
